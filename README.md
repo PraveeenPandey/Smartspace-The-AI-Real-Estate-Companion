@@ -42,6 +42,19 @@ uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 streamlit run streamlit_app/Home.py
 ```
 
+## React UI
+
+The repo also includes a React frontend in `frontend/` for a richer product-facing interface.
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+The React app expects the FastAPI backend to be running at `http://localhost:8000/api` by default.
+
 ## Optional Postgres Mode
 
 If Docker is working and you want a more production-shaped local DB:

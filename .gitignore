@@ -11,4 +11,5 @@ __pycache__/
 dist/
 build/
 .streamlit/secrets.toml
-
+frontend/node_modules/
+frontend/dist/
