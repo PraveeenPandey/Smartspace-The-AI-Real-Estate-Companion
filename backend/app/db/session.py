@@ -22,9 +22,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as session:
-        existing = session.scalar(select(models.Property.id).limit(1))
-        if existing is None:
-            seed_properties(session)
+        seed_properties(session)
 
 
 def get_db() -> Generator[Session, None, None]:

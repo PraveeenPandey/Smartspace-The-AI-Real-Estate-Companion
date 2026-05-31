@@ -2,13 +2,21 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000/api";
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (error) {
+    throw new Error(
+      "Network request failed. Check that the backend is running and CORS allows the React app origin.",
+    );
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -53,4 +61,3 @@ export function analyzeDocument(payload) {
 export function fetchAdminOverview() {
   return request("/admin/overview");
 }
-

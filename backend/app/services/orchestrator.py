@@ -74,24 +74,29 @@ class OrchestratorService:
         )
 
     def build_recommendations(self, payload: RecommendationRequest) -> RecommendationResponse:
+        normalized_request = self._normalize_recommendation_request(payload)
         query = select(Property).where(
-            Property.city.ilike(payload.city),
-            Property.bhk == payload.bhk,
-            Property.property_type.ilike(payload.property_type),
-            Property.price >= payload.budget_min,
-            Property.price <= payload.budget_max,
+            Property.bhk == normalized_request["bhk"],
+            Property.property_type.ilike(normalized_request["property_type"]),
+            Property.price >= normalized_request["budget_min"],
+            Property.price <= normalized_request["budget_max"],
         )
+        candidate_cities = normalized_request["candidate_cities"]
+        if len(candidate_cities) == 1:
+            query = query.where(Property.city.ilike(candidate_cities[0]))
+        else:
+            query = query.where(Property.city.in_(candidate_cities))
         properties = self.db.scalars(query).all()
         ranked = []
         for property_item in properties:
             match_score, match_note, match_confidence = self.matchmaker_agent.score_property(
-                payload.model_dump(), property_item
+                normalized_request, property_item
             )
             spatial_score, spatial_note, spatial_confidence = self.spatial_agent.score_property(
-                property_item, payload.commute_anchor
+                property_item, normalized_request["commute_anchor"]
             )
             market_score, market_note, market_confidence = self.market_agent.score_property(
-                property_item, payload.purpose
+                property_item, normalized_request["purpose"]
             )
             final_score = round((match_score * 0.45) + (spatial_score * 0.3) + (market_score * 0.25), 2)
             ranked.append(
@@ -150,12 +155,12 @@ class OrchestratorService:
             for item in ranked[:5]
         ]
         recommendation_summary = self.gemini.summarize_recommendations(
-            payload.model_dump(),
+            normalized_request,
             ranked_summary,
         )
         self._log_agent_run(
             self.matchmaker_agent.agent_name,
-            payload.model_dump(),
+            normalized_request,
             {
                 "results": len(ranked),
                 "confidence": self._average_confidence(ranked, "match_confidence"),
@@ -163,24 +168,27 @@ class OrchestratorService:
         )
         self._log_agent_run(
             self.spatial_agent.agent_name,
-            payload.model_dump(),
+            normalized_request,
             {
                 "results": len(ranked),
-                "commute_anchor": payload.commute_anchor,
+                "commute_anchor": normalized_request["commute_anchor"],
                 "confidence": self._average_confidence(ranked, "spatial_confidence"),
             },
         )
         self._log_agent_run(
             self.market_agent.agent_name,
-            payload.model_dump(),
+            normalized_request,
             {
                 "results": len(ranked),
-                "purpose": payload.purpose,
+                "purpose": normalized_request["purpose"],
                 "confidence": self._average_confidence(ranked, "market_confidence"),
             },
         )
+        query_summary = recommendation_summary["query_summary"]
+        if normalized_request["resolution_note"]:
+            query_summary = f"{recommendation_summary['query_summary']} Resolution note: {normalized_request['resolution_note']}"
         return RecommendationResponse(
-            query_summary=recommendation_summary["query_summary"],
+            query_summary=query_summary,
             properties=[item["card"] for item in ranked[:5]],
             market_summary=recommendation_summary["market_summary"],
             next_actions=recommendation_summary["next_actions"],
@@ -332,3 +340,61 @@ class OrchestratorService:
             return 0.0
         total = sum(float(item.get(key, 0.0)) for item in ranked)
         return round(total / len(ranked), 2)
+
+    def _normalize_recommendation_request(self, payload: RecommendationRequest) -> dict:
+        city_aliases = {
+            "ncr": ["Noida", "Gurgaon"],
+            "delhi ncr": ["Noida", "Gurgaon"],
+            "bangalore": ["Bangalore"],
+            "bengaluru": ["Bangalore"],
+            "gurugram": ["Gurgaon"],
+        }
+        locality_to_city = {
+            "whitefield": "Bangalore",
+            "sarjapur road": "Bangalore",
+            "electronic city": "Bangalore",
+            "hebbal": "Bangalore",
+            "indirapuram": "Noida",
+            "sector 150": "Noida",
+            "sohna road": "Gurgaon",
+            "golf course extension": "Gurgaon",
+        }
+
+        raw_city = payload.city.strip()
+        city_key = raw_city.lower()
+        candidate_cities = city_aliases.get(city_key, [raw_city])
+        locality_hits = {
+            locality: locality_to_city[locality.lower()]
+            for locality in payload.preferred_localities
+            if locality.lower() in locality_to_city
+        }
+
+        resolution_note = ""
+        if locality_hits:
+            inferred_cities = sorted(set(locality_hits.values()))
+            if len(inferred_cities) == 1 and inferred_cities[0] not in candidate_cities:
+                resolution_note = (
+                    f"Input city '{payload.city}' was adjusted to '{inferred_cities[0]}' "
+                    f"because locality preference matched that city."
+                )
+                candidate_cities = inferred_cities
+            elif len(inferred_cities) == 1 and candidate_cities != inferred_cities and city_key in city_aliases:
+                if inferred_cities[0] in candidate_cities:
+                    candidate_cities = [inferred_cities[0]]
+                    resolution_note = (
+                        f"Regional city input '{payload.city}' was narrowed to '{inferred_cities[0]}' "
+                        f"using the preferred locality."
+                    )
+
+        return {
+            "city": payload.city,
+            "candidate_cities": candidate_cities,
+            "budget_min": payload.budget_min,
+            "budget_max": payload.budget_max,
+            "bhk": payload.bhk,
+            "property_type": payload.property_type,
+            "preferred_localities": payload.preferred_localities,
+            "purpose": payload.purpose,
+            "commute_anchor": payload.commute_anchor,
+            "resolution_note": resolution_note,
+        }

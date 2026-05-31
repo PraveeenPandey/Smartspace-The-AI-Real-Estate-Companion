@@ -55,6 +55,11 @@ npm run dev
 
 The React app expects the FastAPI backend to be running at `http://localhost:8000/api` by default.
 
+Demo UI credentials:
+
+- User: `buyer@smartspace.local` / `User@123`
+- Admin: `admin@smartspace.local` / `Admin@123`
+
 ## Optional Postgres Mode
 
 If Docker is working and you want a more production-shaped local DB:
@@ -78,6 +83,15 @@ SMARTSPACE_DATABASE_URL=postgresql+psycopg://smartspace:smartspace@localhost:543
 - The local default uses `SQLite` so development is not blocked by Docker or paid infrastructure.
 - The LLM integration is behind a single service boundary and switches to Gemini automatically when a Gemini API key is present.
 - When you share the Gemini API key later, the next step is wiring the real adapter in `backend/app/services/gemini.py`.
+
+## Sample Ingestion
+
+The backend ships with a small curated property dataset in `backend/data/sample_properties.json`.
+It is ingested automatically at startup and can also be refreshed manually:
+
+```bash
+curl -X POST http://localhost:8000/api/ingestion/sample-properties
+```
 
 ## Next Build Steps
 

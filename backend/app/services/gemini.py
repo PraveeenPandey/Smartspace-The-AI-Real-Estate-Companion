@@ -9,6 +9,56 @@ from backend.app.core.config import get_settings
 
 
 class GeminiService:
+    CONVERSATION_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string"},
+            "reply": {"type": "string"},
+            "extracted_preferences": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"},
+                    "bhk": {"type": "integer"},
+                    "priority": {"type": "string"},
+                    "budget_min": {"type": "number"},
+                    "budget_max": {"type": "number"},
+                    "property_type": {"type": "string"},
+                    "purpose": {"type": "string"},
+                },
+                "required": [
+                    "city",
+                    "bhk",
+                    "priority",
+                    "budget_min",
+                    "budget_max",
+                    "property_type",
+                    "purpose",
+                ],
+            },
+            "next_actions": {"type": "array", "items": {"type": "string"}},
+            "confidence": {"type": "number"},
+        },
+        "required": ["intent", "reply", "extracted_preferences", "next_actions", "confidence"],
+    }
+    SCORE_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "score": {"type": "number"},
+            "rationale": {"type": "string"},
+            "confidence": {"type": "number"},
+        },
+        "required": ["score", "rationale", "confidence"],
+    }
+    RECOMMENDATION_SUMMARY_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "query_summary": {"type": "string"},
+            "market_summary": {"type": "string"},
+            "next_actions": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["query_summary", "market_summary", "next_actions"],
+    }
+
     def __init__(self) -> None:
         self.settings = get_settings()
 
@@ -66,7 +116,7 @@ Buyer message:
             "next_actions": ["Add budget range", "Share preferred localities", "Set commute anchor"],
             "confidence": 0.45,
         }
-        result = self.generate_json(prompt, fallback)
+        result = self.generate_json(prompt, fallback, self.CONVERSATION_SCHEMA)
         result["confidence"] = self._clamp_score(result.get("confidence", 0.45))
         result["extracted_preferences"] = result.get("extracted_preferences") or fallback[
             "extracted_preferences"
@@ -103,7 +153,7 @@ Property facts:
             "rationale": "Reasonable fit for the current requirement set.",
             "confidence": 0.4,
         }
-        result = self.generate_json(prompt, fallback)
+        result = self.generate_json(prompt, fallback, self.SCORE_SCHEMA)
         result["score"] = self._clamp_score(result.get("score", fallback["score"]))
         result["confidence"] = self._clamp_score(result.get("confidence", fallback["confidence"]))
         result["rationale"] = result.get("rationale") or fallback["rationale"]
@@ -138,7 +188,7 @@ Property facts:
             "rationale": "Solid spatial utility for a general family-oriented search.",
             "confidence": 0.4,
         }
-        result = self.generate_json(prompt, fallback)
+        result = self.generate_json(prompt, fallback, self.SCORE_SCHEMA)
         result["score"] = self._clamp_score(result.get("score", fallback["score"]))
         result["confidence"] = self._clamp_score(result.get("confidence", fallback["confidence"]))
         result["rationale"] = result.get("rationale") or fallback["rationale"]
@@ -173,7 +223,7 @@ Property facts:
             "rationale": "Pricing and layout are acceptable for early shortlist review.",
             "confidence": 0.4,
         }
-        result = self.generate_json(prompt, fallback)
+        result = self.generate_json(prompt, fallback, self.SCORE_SCHEMA)
         result["score"] = self._clamp_score(result.get("score", fallback["score"]))
         result["confidence"] = self._clamp_score(result.get("confidence", fallback["confidence"]))
         result["rationale"] = result.get("rationale") or fallback["rationale"]
@@ -208,25 +258,31 @@ Shortlisted properties:
                 "Upload visual references for preference matching",
             ],
         }
-        result = self.generate_json(prompt, fallback)
+        result = self.generate_json(prompt, fallback, self.RECOMMENDATION_SUMMARY_SCHEMA)
         result["query_summary"] = result.get("query_summary") or fallback["query_summary"]
         result["market_summary"] = result.get("market_summary") or fallback["market_summary"]
         result["next_actions"] = result.get("next_actions") or fallback["next_actions"]
         return result
 
-    def generate_json(self, prompt: str, fallback: dict[str, Any]) -> dict[str, Any]:
+    def generate_json(
+        self, prompt: str, fallback: dict[str, Any], schema: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         if not self.is_configured:
             return fallback
 
         try:
+            generation_config: dict[str, Any] = {
+                "responseMimeType": "application/json",
+                "temperature": 0.2,
+            }
+            if schema is not None:
+                generation_config["responseJsonSchema"] = schema
+
             response = httpx.post(
                 self._endpoint(),
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "temperature": 0.2,
-                    },
+                    "generationConfig": generation_config,
                 },
                 timeout=45.0,
             )

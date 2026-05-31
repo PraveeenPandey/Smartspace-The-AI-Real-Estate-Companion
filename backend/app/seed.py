@@ -1,70 +1,72 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.models.models import Property, PropertyMedia
 
 
+DATASET_PATH = Path(__file__).resolve().parents[1] / "data" / "sample_properties.json"
+
+
 def seed_properties(session: Session) -> None:
-    sample_properties = [
-        Property(
-            title="3 BHK Family Apartment near Whitefield Metro",
-            description="Large family-ready apartment with clubhouse access and metro connectivity.",
-            city="Bangalore",
-            locality="Whitefield",
-            address="ECC Road, Whitefield",
-            lat=12.9698,
-            lng=77.7499,
-            property_type="apartment",
-            bhk=3,
-            bathrooms=3,
-            area_sqft=1680,
-            price=14500000,
-            furnishing="semi-furnished",
-            amenities={"metro": True, "school": True, "clubhouse": True},
-            features_embedding=[0.2, 0.1, 0.4, 0.8, 0.3, 0.6, 0.5, 0.1],
-        ),
-        Property(
-            title="2 BHK Investment Apartment in Sarjapur",
-            description="Strong rental pocket with good school access and tech corridor demand.",
-            city="Bangalore",
-            locality="Sarjapur Road",
-            address="Kasavanahalli, Sarjapur Road",
-            lat=12.9008,
-            lng=77.6846,
-            property_type="apartment",
-            bhk=2,
-            bathrooms=2,
-            area_sqft=1240,
-            price=9800000,
-            furnishing="unfurnished",
-            amenities={"school": True, "rental_demand": True},
-            features_embedding=[0.4, 0.5, 0.2, 0.6, 0.2, 0.7, 0.1, 0.4],
-        ),
-        Property(
-            title="3 BHK Premium Apartment in Indirapuram",
-            description="Well-connected gated community with strong family living amenities.",
-            city="Noida",
-            locality="Indirapuram",
-            address="Nyay Khand, Indirapuram",
-            lat=28.6443,
-            lng=77.3693,
-            property_type="apartment",
-            bhk=3,
-            bathrooms=3,
-            area_sqft=1725,
-            price=13200000,
-            furnishing="furnished",
-            amenities={"school": True, "hospital": True, "gated": True},
-            features_embedding=[0.3, 0.2, 0.5, 0.7, 0.4, 0.5, 0.2, 0.3],
-        ),
-    ]
-    session.add_all(sample_properties)
-    session.flush()
+    dataset = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 
-    media = [
-        PropertyMedia(property_id=sample_properties[0].id, file_url="https://example.com/p1.jpg"),
-        PropertyMedia(property_id=sample_properties[1].id, file_url="https://example.com/p2.jpg"),
-        PropertyMedia(property_id=sample_properties[2].id, file_url="https://example.com/p3.jpg"),
-    ]
-    session.add_all(media)
+    for record in dataset:
+        property_record = session.scalar(
+            select(Property).where(
+                Property.title == record["title"],
+                Property.address == record["address"],
+            )
+        )
+        if property_record is None:
+            property_record = Property(
+                title=record["title"],
+                description=record["description"],
+                city=record["city"],
+                locality=record["locality"],
+                address=record["address"],
+                lat=record["lat"],
+                lng=record["lng"],
+                property_type=record["property_type"],
+                bhk=record["bhk"],
+                bathrooms=record["bathrooms"],
+                area_sqft=record["area_sqft"],
+                price=record["price"],
+                furnishing=record["furnishing"],
+                status=record.get("status", "active"),
+                amenities=record.get("amenities", {}),
+                features_embedding=record.get("features_embedding"),
+            )
+            session.add(property_record)
+            session.flush()
+        else:
+            property_record.description = record["description"]
+            property_record.city = record["city"]
+            property_record.locality = record["locality"]
+            property_record.lat = record["lat"]
+            property_record.lng = record["lng"]
+            property_record.property_type = record["property_type"]
+            property_record.bhk = record["bhk"]
+            property_record.bathrooms = record["bathrooms"]
+            property_record.area_sqft = record["area_sqft"]
+            property_record.price = record["price"]
+            property_record.furnishing = record["furnishing"]
+            property_record.status = record.get("status", "active")
+            property_record.amenities = record.get("amenities", {})
+            property_record.features_embedding = record.get("features_embedding")
+
+        existing_media = {
+            media.file_url
+            for media in session.scalars(
+                select(PropertyMedia).where(PropertyMedia.property_id == property_record.id)
+            ).all()
+        }
+        for file_url in record.get("media_urls", []):
+            if file_url not in existing_media:
+                session.add(PropertyMedia(property_id=property_record.id, file_url=file_url))
+
     session.commit()
-

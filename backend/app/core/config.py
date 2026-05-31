@@ -13,7 +13,14 @@ class Settings(BaseSettings):
     api_port: int = 8000
     ui_port: int = 8501
     database_url: str = "sqlite:///./smartspace.db"
-    allowed_origins: str = "http://localhost:8501,http://127.0.0.1:8501"
+    allowed_origins: str = (
+        "http://localhost:8501,"
+        "http://127.0.0.1:8501,"
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:4173,"
+        "http://127.0.0.1:4173"
+    )
     llm_provider: str = "mock"
     gemini_model: str = "gemini-2.5-flash"
     gemini_api_key: str | None = None
