@@ -1,3 +1,2 @@
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS postgis;
-
+-- Extensions are intentionally omitted for the local zero-setup path.
+-- Use managed Postgres + pgvector/PostGIS later when you need true vector/spatial indexing.

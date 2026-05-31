@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     ui_port: int = 8501
-    database_url: str = "postgresql+psycopg://smartspace:smartspace@localhost:5432/smartspace"
+    database_url: str = "sqlite:///./smartspace.db"
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:8501"])
     llm_provider: str = "mock"
     gemini_model: str = "gemini-2.5-flash"

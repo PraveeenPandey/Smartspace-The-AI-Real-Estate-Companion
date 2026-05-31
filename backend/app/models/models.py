@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -66,7 +65,7 @@ class Property(TimestampMixin, Base):
     furnishing: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(40), default="active")
     amenities: Mapped[dict] = mapped_column(JSON, default=dict)
-    features_embedding: Mapped[list[float] | None] = mapped_column(Vector(8), nullable=True)
+    features_embedding: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
 
     media: Mapped[list["PropertyMedia"]] = relationship(back_populates="property")
 
@@ -98,7 +97,7 @@ class UserPreference(TimestampMixin, Base):
     commute_anchor_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
     commute_anchor_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     commute_anchor_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
-    preferences_embedding: Mapped[list[float] | None] = mapped_column(Vector(8), nullable=True)
+    preferences_embedding: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
 
 
 class RecommendationRun(Base):
@@ -149,4 +148,3 @@ class AgentRun(Base):
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(40), default="completed")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
