@@ -4,34 +4,33 @@ import streamlit as st
 st.set_page_config(page_title="SmartSpace", page_icon="🏠", layout="wide")
 
 st.title("SmartSpace")
-st.caption("Multimodal and spatial AI companion for property discovery, listing, and review.")
+st.caption("AI real-estate companion for discovery, listing operations, and document intelligence.")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Buyer Flow")
+    st.subheader("Property Discovery")
     st.write(
-        "Capture needs through chat, images, and voice, then route through matching, spatial, and market logic."
+        "Understand buyer intent across conversation, then turn it into shortlist-ready property recommendations."
     )
-    st.page_link("pages/1_Buyer_Chat.py", label="Open Buyer Chat")
+    st.page_link("pages/1_Buyer_Chat.py", label="Open Discovery Workspace")
 
 with col2:
-    st.subheader("Seller + Ops Flow")
+    st.subheader("Listing and Review Operations")
     st.write(
-        "Draft listings, analyze documents, and keep risky outputs behind human review."
+        "Create better listing drafts, review property documents, and monitor operational activity."
     )
-    st.page_link("pages/2_Seller_Listing.py", label="Open Seller Listing")
-    st.page_link("pages/3_Document_Review.py", label="Open Document Review")
-    st.page_link("pages/4_Admin_Dashboard.py", label="Open Admin Dashboard")
+    st.page_link("pages/2_Seller_Listing.py", label="Open Listing Studio")
+    st.page_link("pages/3_Document_Review.py", label="Open Document Intelligence")
+    st.page_link("pages/4_Admin_Dashboard.py", label="Open Operations Console")
 
 st.divider()
 st.markdown(
     """
-    **Current mode**
+    **Platform Status**
 
-    - Backend: FastAPI
-    - Database: PostgreSQL + PostGIS + pgvector
-    - LLM: mock adapter until Gemini API key is added
+    - Application layer: FastAPI
+    - Local data layer: SQLite by default, optional PostgreSQL for production-shaped development
+    - LLM integration: mock mode until Gemini credentials are enabled
     """
 )
-

@@ -5,8 +5,8 @@ from streamlit_app.api_client.client import SmartSpaceApiClient
 
 client = SmartSpaceApiClient()
 
-st.title("Admin Dashboard")
-st.caption("Human-review queues, active sessions, and recent agent runs.")
+st.title("Operations Console")
+st.caption("Monitor review queues, active discovery sessions, and recent workflow activity.")
 
 try:
     overview = client.get_admin_overview()
@@ -16,7 +16,7 @@ try:
     col3.metric("Properties", overview["total_properties"])
     col4.metric("LLM Mode", overview["llm_mode"])
 
-    st.subheader("Recent Agent Runs")
+    st.subheader("Recent Workflow Activity")
     if overview["recent_agent_runs"]:
         st.dataframe(overview["recent_agent_runs"], use_container_width=True)
     else:
