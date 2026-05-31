@@ -28,10 +28,10 @@ class OrchestratorService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.gemini = GeminiService()
-        self.conversation_agent = ConversationAgent()
-        self.matchmaker_agent = MatchmakerAgent()
-        self.spatial_agent = SpatialAgent()
-        self.market_agent = MarketIntelligenceAgent()
+        self.conversation_agent = ConversationAgent(self.gemini)
+        self.matchmaker_agent = MatchmakerAgent(self.gemini)
+        self.spatial_agent = SpatialAgent(self.gemini)
+        self.market_agent = MarketIntelligenceAgent(self.gemini)
         self.listing_agent = ListingCopilotAgent()
         self.document_agent = DocumentAgent()
 
@@ -84,13 +84,13 @@ class OrchestratorService:
         properties = self.db.scalars(query).all()
         ranked = []
         for property_item in properties:
-            match_score = self.matchmaker_agent.score_property(
-                property_item, payload.preferred_localities
+            match_score, match_note, match_confidence = self.matchmaker_agent.score_property(
+                payload.model_dump(), property_item
             )
-            spatial_score, spatial_note = self.spatial_agent.score_property(
+            spatial_score, spatial_note, spatial_confidence = self.spatial_agent.score_property(
                 property_item, payload.commute_anchor
             )
-            market_score, market_note = self.market_agent.score_property(
+            market_score, market_note, market_confidence = self.market_agent.score_property(
                 property_item, payload.purpose
             )
             final_score = round((match_score * 0.45) + (spatial_score * 0.3) + (market_score * 0.25), 2)
@@ -107,12 +107,18 @@ class OrchestratorService:
                     match_score=final_score,
                     explanation=(
                         f"Match: {match_score:.2f}. Spatial: {spatial_score:.2f}. Market: {market_score:.2f}. "
-                        f"{spatial_note} {market_note}"
+                        f"{match_note} {spatial_note} {market_note}"
                     ),
                     ),
                     "match_score": match_score,
+                    "match_note": match_note,
+                    "match_confidence": match_confidence,
                     "spatial_score": spatial_score,
+                    "spatial_note": spatial_note,
+                    "spatial_confidence": spatial_confidence,
                     "market_score": market_score,
+                    "market_note": market_note,
+                    "market_confidence": market_confidence,
                     "final_score": final_score,
                 }
             )
@@ -133,35 +139,51 @@ class OrchestratorService:
                 )
             )
         self.db.commit()
+        ranked_summary = [
+            {
+                "property_id": item["card"].property_id,
+                "title": item["card"].title,
+                "locality": item["card"].locality,
+                "final_score": item["final_score"],
+                "explanation": item["card"].explanation,
+            }
+            for item in ranked[:5]
+        ]
+        recommendation_summary = self.gemini.summarize_recommendations(
+            payload.model_dump(),
+            ranked_summary,
+        )
         self._log_agent_run(
             self.matchmaker_agent.agent_name,
             payload.model_dump(),
-            {"results": len(ranked)},
+            {
+                "results": len(ranked),
+                "confidence": self._average_confidence(ranked, "match_confidence"),
+            },
         )
         self._log_agent_run(
             self.spatial_agent.agent_name,
             payload.model_dump(),
-            {"results": len(ranked), "commute_anchor": payload.commute_anchor},
+            {
+                "results": len(ranked),
+                "commute_anchor": payload.commute_anchor,
+                "confidence": self._average_confidence(ranked, "spatial_confidence"),
+            },
         )
         self._log_agent_run(
             self.market_agent.agent_name,
             payload.model_dump(),
-            {"results": len(ranked), "purpose": payload.purpose},
+            {
+                "results": len(ranked),
+                "purpose": payload.purpose,
+                "confidence": self._average_confidence(ranked, "market_confidence"),
+            },
         )
         return RecommendationResponse(
-            query_summary=(
-                f"{payload.bhk} BHK {payload.property_type} options in {payload.city} "
-                f"between {payload.budget_min:,.0f} and {payload.budget_max:,.0f}."
-            ),
+            query_summary=recommendation_summary["query_summary"],
             properties=[item["card"] for item in ranked[:5]],
-            market_summary=(
-                "Price guidance is mock-backed for now. Replace this with locality comps "
-                "and trend signals once your ingestion pipeline is live."
-            ),
-            next_actions=[
-                "Add commute anchor for spatial reranking",
-                "Upload sample property images for multimodal preference extraction",
-            ],
+            market_summary=recommendation_summary["market_summary"],
+            next_actions=recommendation_summary["next_actions"],
         )
 
     def create_listing(self, payload: ListingCreateRequest) -> ListingCreateResponse:
@@ -268,7 +290,7 @@ class OrchestratorService:
             queued_reviews=queued_reviews,
             active_sessions=active_sessions,
             total_properties=total_properties,
-            llm_mode=self.gemini.settings.llm_provider,
+            llm_mode=self.gemini.active_provider,
             recent_agent_runs=[
                 AgentRunSummary(
                     agent_name=run.agent_name,
@@ -304,3 +326,9 @@ class OrchestratorService:
         )
         self.db.add(run)
         self.db.commit()
+
+    def _average_confidence(self, ranked: list[dict], key: str) -> float:
+        if not ranked:
+            return 0.0
+        total = sum(float(item.get(key, 0.0)) for item in ranked)
+        return round(total / len(ranked), 2)

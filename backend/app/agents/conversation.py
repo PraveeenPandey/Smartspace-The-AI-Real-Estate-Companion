@@ -1,10 +1,21 @@
 from backend.app.agents.base import BaseAgent
+from backend.app.services.gemini import GeminiService
 
 
 class ConversationAgent(BaseAgent):
     agent_name = "conversation_agent"
 
+    def __init__(self, gemini: GeminiService) -> None:
+        self.gemini = gemini
+
     def run(self, payload: dict) -> dict:
+        if self.gemini.is_configured:
+            result = self.gemini.extract_buyer_intent(
+                payload["message"], payload.get("language", "en")
+            )
+            if result.get("intent"):
+                return result
+
         message = payload["message"].lower()
         if "sell" in message or "listing" in message:
             intent = "seller_listing"
@@ -39,6 +50,5 @@ class ConversationAgent(BaseAgent):
             "reply": reply,
             "extracted_preferences": preferences,
             "next_actions": next_actions,
-            "confidence": 0.81,
+            "confidence": 0.46,
         }
-

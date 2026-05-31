@@ -76,7 +76,7 @@ SMARTSPACE_DATABASE_URL=postgresql+psycopg://smartspace:smartspace@localhost:543
 - API endpoints are scaffolded and return production-shaped JSON responses.
 - Database models cover the initial buyer, seller, recommendation, and document flows.
 - The local default uses `SQLite` so development is not blocked by Docker or paid infrastructure.
-- The LLM integration is behind a single service boundary and currently runs in `mock` mode.
+- The LLM integration is behind a single service boundary and switches to Gemini automatically when a Gemini API key is present.
 - When you share the Gemini API key later, the next step is wiring the real adapter in `backend/app/services/gemini.py`.
 
 ## Next Build Steps
